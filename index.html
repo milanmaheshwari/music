@@ -22,6 +22,7 @@
 </head>
 <body>
     <h1>Spotify Playlist Player</h1>
+    <button onclick="authorizeSpotify()">Login with Spotify</button>
     <div>
         <input type="text" id="playlistUrl" placeholder="Enter Spotify Playlist/Track URL">
         <button onclick="loadPlaylist()">Load</button>
@@ -37,25 +38,31 @@
     <script>
         let player;
         let clientId = 'c651af23460a4e3e9e8733aeadb0a6e4'; // Replace with your Spotify Client ID
-        let clientSecret = '48ef8e7b731c452580ca1d842f9622da'; // Replace with your Spotify Client Secret
+        let redirectUri = 'https://milanmaheshwari.design/music'; // Replace with your redirect URI
         let token;
         let playerReady = false;
 
-        async function getAccessToken() {
-            const response = await fetch('https://accounts.spotify.com/api/token', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'Authorization': 'Basic ' + btoa(clientId + ':' + clientSecret)
-                },
-                body: 'grant_type=client_credentials'
-            });
-            const data = await response.json();
-            token = data.access_token;
+        function authorizeSpotify() {
+            const scopes = 'streaming user-read-playback-state user-modify-playback-state';
+            const authUrl = `https://accounts.spotify.com/authorize?client_id=${clientId}&response_type=token&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}`;
+            window.location.href = authUrl;
         }
 
-        window.onSpotifyWebPlaybackSDKReady = async () => {
-            await getAccessToken();
+        function getTokenFromUrl() {
+            const hash = window.location.hash.substring(1);
+            const params = new URLSearchParams(hash);
+            token = params.get('access_token');
+            if (token) {
+                document.getElementById('controls').style.display = 'block';
+            }
+        }
+
+        window.onSpotifyWebPlaybackSDKReady = () => {
+            getTokenFromUrl();
+            if (!token) {
+                console.error('No Spotify token found. Please login.');
+                return;
+            }
             player = new Spotify.Player({
                 name: 'Web Player',
                 getOAuthToken: cb => { cb(token); },
@@ -65,7 +72,6 @@
             player.addListener('ready', ({ device_id }) => {
                 console.log('Ready with Device ID', device_id);
                 playerReady = true;
-                document.getElementById('controls').style.display = 'block';
             });
 
             player.connect();
@@ -75,7 +81,6 @@
             let playlistUrl = document.getElementById('playlistUrl').value;
             let playlistId = extractSpotifyId(playlistUrl);
             if (playlistId) {
-                await getAccessToken();
                 fetch(`https://api.spotify.com/v1/playlists/${playlistId}/tracks`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 })
@@ -135,6 +140,9 @@
                 console.error('Player is not ready yet.');
             }
         }
+    </script>
+    <script>
+        getTokenFromUrl();
     </script>
 </body>
 </html>
