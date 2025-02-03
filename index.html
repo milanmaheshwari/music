@@ -44,7 +44,7 @@
         let deviceId;
 
         function authorizeSpotify() {
-            const scopes = 'streaming user-read-playback-state user-modify-playback-state';
+            const scopes = 'streaming user-read-playback-state user-modify-playback-state playlist-read-private';
             const authUrl = `https://accounts.spotify.com/authorize?client_id=${clientId}&response_type=token&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}`;
             window.location.href = authUrl;
         }
@@ -98,25 +98,36 @@
             }
         }
 
+        function extractSpotifyId(url) {
+            let match = url.match(/(?:playlist|track)\/([a-zA-Z0-9]+)/);
+            return match ? match[1] : null;
+        }
+
         async function loadPlaylist() {
             let playlistUrl = document.getElementById('playlistUrl').value;
             let playlistId = extractSpotifyId(playlistUrl);
-            if (playlistId) {
-                fetch(`https://api.spotify.com/v1/playlists/${playlistId}/tracks`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    let uris = data.items.map(item => item.track.uri);
-                    playTracks(uris);
-                })
-                .catch(error => console.error('Error loading playlist:', error));
+            if (!playlistId) {
+                console.error('Invalid Spotify URL');
+                return;
             }
-        }
 
-        function extractSpotifyId(url) {
-            let match = url.match(/spotify\.com\/(playlist|track)\/([a-zA-Z0-9]+)/);
-            return match ? match[2] : null;
+            console.log('Fetching playlist:', playlistId);
+            
+            try {
+                let response = await fetch(`https://api.spotify.com/v1/playlists/${playlistId}/tracks`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Error ${response.status}: ${response.statusText}`);
+                }
+
+                let data = await response.json();
+                let uris = data.items.map(item => item.track.uri);
+                playTracks(uris);
+            } catch (error) {
+                console.error('Error loading playlist:', error);
+            }
         }
 
         function playTracks(uris) {
@@ -124,7 +135,7 @@
                 method: 'PUT',
                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ uris })
-            });
+            }).catch(error => console.error('Error playing tracks:', error));
         }
 
         function togglePlayPause() {
